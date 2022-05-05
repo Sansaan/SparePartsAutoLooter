@@ -44,7 +44,6 @@ local function split(str, pat, limit)
 		end
 		last_end = e+1
 		s, e, cap = str:find(fpat, last_end)
-  
 		if limit ~= nil and limit <= #t then
 			break
 		end
@@ -64,7 +63,7 @@ function SPAL.Msg(msg,title)
 	-- title = nil to print long title
 	--         false to suppress title
 	--         true to print short title
-	short = title or (title == nil and false)
+	local short = title or (title == nil and false)
 	title = title or (title == nil and true)
 	DEFAULT_CHAT_FRAME:AddMessage((title and (short and SPAL.short_addon_title or SPAL.addon_title).." " or "")..msg)
 end
@@ -102,7 +101,7 @@ local function AutoLootItem(li, itemlink)
 				break
 			end
 		end
-		
+
 		if eligible then
 			SPAL.Msg("Auto looting "..itemlink.." to "..autolooters[al], true)
 			logAutoLootItem(itemlink, autolooters[al])
@@ -129,6 +128,7 @@ function SPAL.SVInitialize(config, history)
 			local _,itemlink = GetItemInfo(itemid)
 			SPALConfig.AutoLootList[itemlink] = autolooter
 		end
+
 	elseif not string.match((SPALConfig.Version and SPALConfig.Version or "undefined"),SPAL.Version) then
 		--version upgrade, might need to do something
 		SPAL.Msg("Update detected. Upgrading datbase. (addon:"..SPAL.Version..", db:"..(SPALConfig.Version and SPALConfig.Version or "undefined")..")")
@@ -245,7 +245,7 @@ function SPAL.SlashCommand(input)
 		end
 
 		return
-		
+
 	elseif string.find(cmd,"status") then
 		if SPALConfig.Enabled then
 			local lootmethod, masterlooterPartyID, masterlooterRaidID = GetLootMethod()
@@ -357,7 +357,6 @@ function SPAL.SlashCommand(input)
 	SPAL.Msg(" ",false)
 	SPAL.Msg(SLASH_SPAL1.." reset|r",false)
 	SPAL.Msg("         - Reset all settings back to default.",false)
-	return
 end
 
 SLASH_SPAL1, SLASH_SPAL2, SLASH_SPAL3 = "/spal","/sparepartsautolooter","/autolooter"
