@@ -122,7 +122,10 @@ function SPAL.EventHandler(self, event, ...)
 				SPAL.Msg("Initializing addon from defaults.")
 				SPALConfig = {}
 				SPALConfig.Enabled = true
-				SPALConfig.AutoLootList = SPAL.DefaultAutoLootList
+				for itemid,autolooter in pairs(SPAL.DefaultAutoLootList) do
+					local itemName,itemLink = GetItemInfo(itemid)
+					SPALConfig.AutoLootList[itemLink] = autolooter
+				end
 			end
 			if not SPALHistory then
 				SPALHistory = {}
@@ -183,7 +186,6 @@ function SPAL.SlashCommand(input)
 		args = split(input, " ", 1)
 		if #args then
 			cmd = args[1]
-			--input = (args[2] and args[2] or "")
 			input = table.concat(args, " ", 2)
 		end
 	end	
@@ -203,6 +205,10 @@ function SPAL.SlashCommand(input)
 		SPALConfig = {}
 		SPALConfig.Enabled = true
 		SPALConfig.AutoLootList = SPAL.DefaultAutoLootList
+		for itemid,autolooter in pairs(SPAL.DefaultAutoLootList) do
+			local itemName,itemLink = GetItemInfo(itemid)
+			SPALConfig.AutoLootList[itemLink] = autolooter
+		end
 		SPAL.Msg("has been reset to defaults.")
 		return
 
@@ -318,9 +324,13 @@ function SPAL.SlashCommand(input)
 				SPAL.Msg(SPAL.Colorfy("REMOVING", SPAL.red).." auto loot rule for "..itemLink, true)
 			elseif SPALConfig.AutoLootList[itemids[i]] then
 				SPALConfig.AutoLootList[itemids[i]] = autolooterstring
+				autolooterstring = autolooterstring:gsub("__masterlooter__", "Master Looter")
+				autolooterstring = autolooterstring:gsub("__roundrobin__", "Round-Robin")
 				SPAL.Msg(SPAL.Colorfy("UPDATING", SPAL.orange).." auto loot rule for "..itemLink.." to "..autolooterstring, true)
 			else
 				SPALConfig.AutoLootList[itemids[i]] = autolooterstring
+				autolooterstring = autolooterstring:gsub("__masterlooter__", "Master Looter")
+				autolooterstring = autolooterstring:gsub("__roundrobin__", "Round-Robin")
 				SPAL.Msg(SPAL.Colorfy("ADDING", SPAL.green).." auto loot rule for "..itemLink.." to "..autolooterstring, true)
 			end
 		end
