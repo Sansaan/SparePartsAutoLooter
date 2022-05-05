@@ -1,6 +1,7 @@
 SPAL = {}
 SPAL.Frame = CreateFrame("FRAME")
 SPAL.addon_name = "SparePartsAutoLooter"
+SPAL.Version = GetAddOnMetadata(SPAL.addon_name,"Version")
 
 --assuming ML is off by default
 SPAL.MasterLooter = false
@@ -27,6 +28,10 @@ SPAL.DefaultAutoLootList = {
 	[32230] = "Belois", -- Shadowsong Amethyst, Purple
 	[32428] = "__masterlooter__" -- Heart of Darkness
 }
+
+local function GetItemID(itemlink)
+	return tonumber(string.match(itemlink, "item:(%d*)"))
+end
 
 local function split(str, pat, limit)
 	local t = {}
@@ -62,14 +67,11 @@ function SPAL.Msg(msg,title)
 	short = title or (title == nil and false)
 	title = title or (title == nil and true)
 	DEFAULT_CHAT_FRAME:AddMessage((title and (short and SPAL.short_addon_title or SPAL.addon_title).." " or "")..msg)
-	return
 end
 
-local function logAutoLootItem(itemLink, memName)
+local function logAutoLootItem(itemlink, memName)
 	local mydate = date("%Y-%m-%d")
 	local mytime = date("%H:%M:%S")
-
-	local itemName = GetItemInfo(itemLink)
 
 	if not SPALHistory[mydate] then
 		SPALHistory[mydate] = {}
@@ -78,13 +80,12 @@ local function logAutoLootItem(itemLink, memName)
 		SPALHistory[mydate][mytime] = {}
 	end
 
-	table.insert(SPALHistory[mydate][mytime], memName.." received "..itemLink)
+	table.insert(SPALHistory[mydate][mytime], memName.." received "..itemlink)
 end
 
-local function AutoLootItem(li, itemLink)
+local function AutoLootItem(li, itemlink)
 	local distributed = false
-	local itemId = tonumber(string.match(itemLink, "item:(%d*)"))
-	local autolooters = split(SPALConfig.AutoLootList[itemId], " ")
+	local autolooters = split(SPALConfig.AutoLootList[itemlink], " ")
 
 	local memName = UnitName("player")
 	if autolooters[1] == "__masterlooter__" then
@@ -103,8 +104,8 @@ local function AutoLootItem(li, itemLink)
 		end
 		
 		if eligible then
-			SPAL.Msg("Auto looting "..itemLink.." to "..autolooters[al], true)
-			logAutoLootItem(itemLink, autolooters[al])
+			SPAL.Msg("Auto looting "..itemlink.." to "..autolooters[al], true)
+			logAutoLootItem(itemlink, autolooters[al])
 			GiveMasterLoot(li, eligible)
 			distributed = true
 			return distributed
@@ -114,23 +115,46 @@ local function AutoLootItem(li, itemLink)
 	return distributed
 end
 
+function SPAL.SVInitialize(config, history)
+	local config = (config and true or false)
+	local history = (history and true or false)
+
+	if config or not SPALConfig then
+		SPAL.Msg("Resetting Auto Loot Rules to defaults.")
+		SPALConfig = {}
+		SPALConfig.Enabled = true
+		SPALConfig.Version = SPAL.Version
+		SPALConfig.AutoLootList = {}
+		for itemid,autolooter in pairs(SPAL.DefaultAutoLootList) do
+			local _,itemlink = GetItemInfo(itemid)
+			SPALConfig.AutoLootList[itemlink] = autolooter
+		end
+	elseif not string.match((SPALConfig.Version and SPALConfig.Version or "undefined"),SPAL.Version) then
+		--version upgrade, might need to do something
+		SPAL.Msg("Update detected. Upgrading datbase. (addon:"..SPAL.Version..", db:"..(SPALConfig.Version and SPALConfig.Version or "undefined")..")")
+		SPALConfig.Version = SPAL.Version
+		local holding = SPALConfig.AutoLootList
+		SPALConfig.AutoLootList = {}
+		for itemid,autolooter in pairs(holding) do
+			local _,itemlink = GetItemInfo(itemid)
+			SPALConfig.AutoLootList[itemlink] = autolooter
+		end
+	end
+
+	if history or not SPALHistory then
+		SPAL.Msg("Clearing Auto Loot History.")
+		SPALHistory = {}
+	end
+end
+
 function SPAL.EventHandler(self, event, ...)
 	if event == "ADDON_LOADED" then
 		local addon_name = ...
 		if addon_name == SPAL.addon_name then
-			if not SPALConfig then
-				SPAL.Msg("Initializing addon from defaults.")
-				SPALConfig = {}
-				SPALConfig.Enabled = true
-				SPALConfig.AutoLootList = SPAL.DefaultAutoLootList
-			end
-			if not SPALHistory then
-				SPALHistory = {}
-			end
-			SPAL.Msg("Addon loaded!")
+			SPAL.SVInitialize()
+			SPAL.Msg(SPAL.Colorfy("Version "..SPAL.Version,SPAL.orange).."Loaded!")
 
-			local lootmethod, masterlooterPartyID, masterlooterRaidID = GetLootMethod()
-			if lootmethod == "master" then
+			if  GetLootMethod() == "master" then
 				SPAL.MasterLooter = true
 			else
 				SPAL.MasterLooter = false
@@ -141,7 +165,7 @@ function SPAL.EventHandler(self, event, ...)
 	elseif event == "PLAYER_LOGOUT" then
 		return
 	end
-	
+
 	if not SPALConfig.Enabled then
 		-- Addon disabled, business as usual.
 		return
@@ -151,20 +175,14 @@ function SPAL.EventHandler(self, event, ...)
 
 	if lootmethod == "master" and masterlooterPartyID == 0 then
 		for li = 1, GetNumLootItems() do
-			local itemLink = GetLootSlotLink(li)
-			if itemLink then
-				local itemName = GetItemInfo(itemLink)
-				if itemName then
-					local itemId = tonumber(string.match(itemLink, "item:(%d*)"))
-					if itemId then
-						if SPALConfig.AutoLootList[itemId] then
-							local distributed = AutoLootItem(li, itemLink)
-							if not distributed then
-								SPAL.Msg("Unable to auto loot "..itemLink, true)
-							end
-							break
-						end
+			local itemlink = GetLootSlotLink(li)
+			if itemlink then
+				if SPALConfig.AutoLootList[itemlink] then
+					local distributed = AutoLootItem(li, itemlink)
+					if not distributed then
+						SPAL.Msg("Unable to auto loot "..itemlink, true)
 					end
+					--break -- possible fix for multiple auto loot items
 				end
 			end
 		end
@@ -183,7 +201,6 @@ function SPAL.SlashCommand(input)
 		args = split(input, " ", 1)
 		if #args then
 			cmd = args[1]
-			--input = (args[2] and args[2] or "")
 			input = table.concat(args, " ", 2)
 		end
 	end	
@@ -200,17 +217,13 @@ function SPAL.SlashCommand(input)
 		return
 
 	elseif string.find(cmd,"reset") then
-		SPALConfig = {}
-		SPALConfig.Enabled = true
-		SPALConfig.AutoLootList = SPAL.DefaultAutoLootList
-		SPAL.Msg("has been reset to defaults.")
+		SPAL.SVInitialize(true, false)
 		return
 
 	elseif string.find(cmd,"history") then
 		local args = split(input, " ")
 		if #args == 1 and args[1] == "delete" then
-			SPAL.Msg("Deleting Auto Loot History.",true)
-			SPALHistory = {}
+			SPAL.SVInitialize(false, true)
 			return
 		elseif #args >= 1 then
 			SPAL.Msg("Unknown option supplied.",true)
@@ -219,8 +232,8 @@ function SPAL.SlashCommand(input)
 
 		SPAL.Msg("Auto Loot History")
 		local history = false
-		for mydate,data in pairs(SPALHistory) do
-			for mytime,logentry in pairs(SPALHistory[mydate]) do
+		for mydate in pairs(SPALHistory) do
+			for mytime in pairs(SPALHistory[mydate]) do
 				for i = 1, #SPALHistory[mydate][mytime] do
 					history = true
 					SPAL.Msg(mydate.." "..mytime..": "..SPALHistory[mydate][mytime][i],true)
@@ -236,7 +249,7 @@ function SPAL.SlashCommand(input)
 	elseif string.find(cmd,"status") then
 		if SPALConfig.Enabled then
 			local lootmethod, masterlooterPartyID, masterlooterRaidID = GetLootMethod()
-			SPAL.Msg(SPAL.Colorfy("ENABLED",SPAL.green))
+			SPAL.Msg(SPAL.Colorfy("Version "..SPAL.Version,SPAL.orange).." "..SPAL.Colorfy("ENABLED",SPAL.green))
 			if lootmethod == "master" then
 				if masterlooterPartyID == 0 then
 					SPAL.Msg("Master Looter: "..SPAL.Colorfy("ENABLED",SPAL.green),false)
@@ -254,10 +267,9 @@ function SPAL.SlashCommand(input)
 			end
 			local autolootempty = true
 			SPAL.Msg("Auto looting is configured for the following items:",false)
-			for itemid,autolooter in pairs(SPALConfig.AutoLootList) do
+			for itemlink,autolooter in pairs(SPALConfig.AutoLootList) do
 				autolooter = (autolooter == "__masterlooter__" and "Master Looter" or (autolooter == "__roundrobin__" and "awarded round-robin" or autolooter))
-				local itemName,itemLink,_,_,_,_,_,_,_,_,_ = GetItemInfo(itemid)
-				SPAL.Msg("> "..itemLink.." ==> "..autolooter,false)
+				SPAL.Msg("■"..itemlink.." → "..autolooter,false)
 				autolootempty = false
 			end
 			if autolootempty then
@@ -276,7 +288,7 @@ function SPAL.SlashCommand(input)
 		end
 
 		local autolooters = {}
-		local itemids = {}
+		local items = {}
 
 		local args
 		args = split(input, "]")
@@ -285,11 +297,10 @@ function SPAL.SlashCommand(input)
 		end
 
 		for i = 1, #args do
-			local _,itemLink,_,_,_,_,_,_,_,_,_ = GetItemInfo(args[i])
-			if itemLink then
+			local _,itemlink = GetItemInfo(args[i])
+			if itemlink then
 				-- item found
-				local itemid = itemLink:match("item:(%d+):")
-				table.insert(itemids,tonumber(itemid))
+				table.insert(items,itemlink)
 			else
 				local options = split(args[i]," ")
 				for j = 1, #options do
@@ -309,19 +320,17 @@ function SPAL.SlashCommand(input)
 
 		local autolooterstring = table.concat(autolooters, " ")
 
-		for i = 1, #itemids do
-			local _,itemLink,_,_,_,_,_,_,_,_,_ = GetItemInfo(itemids[i])
-
-			if SPALConfig.AutoLootList[itemids[i]] == autolooterstring then
+		for i = 1, #items do
+			if SPALConfig.AutoLootList[items[i]] == autolooterstring then
 				-- already there, remove the item
-				SPALConfig.AutoLootList[itemids[i]] = nil
-				SPAL.Msg(SPAL.Colorfy("REMOVING", SPAL.red).." auto loot rule for "..itemLink, true)
-			elseif SPALConfig.AutoLootList[itemids[i]] then
-				SPALConfig.AutoLootList[itemids[i]] = autolooterstring
-				SPAL.Msg(SPAL.Colorfy("UPDATING", SPAL.orange).." auto loot rule for "..itemLink.." to "..autolooterstring, true)
+				SPALConfig.AutoLootList[items[i]] = nil
+				SPAL.Msg(SPAL.Colorfy("REMOVING", SPAL.red).." auto loot rule for "..items[i], true)
+			elseif SPALConfig.AutoLootList[items[i]] then
+				SPALConfig.AutoLootList[items[i]] = autolooterstring
+				SPAL.Msg(SPAL.Colorfy("UPDATING", SPAL.orange).." auto loot rule for "..items[i].." to "..autolooterstring, true)
 			else
-				SPALConfig.AutoLootList[itemids[i]] = autolooterstring
-				SPAL.Msg(SPAL.Colorfy("ADDING", SPAL.green).." auto loot rule for "..itemLink.." to "..autolooterstring, true)
+				SPALConfig.AutoLootList[items[i]] = autolooterstring
+				SPAL.Msg(SPAL.Colorfy("ADDING", SPAL.green).." auto loot rule for "..items[i].." to "..autolooterstring, true)
 			end
 		end
 
