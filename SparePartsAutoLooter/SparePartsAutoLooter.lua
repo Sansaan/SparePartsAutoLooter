@@ -152,7 +152,7 @@ function SPAL.EventHandler(self, event, ...)
 		local addon_name = ...
 		if addon_name == SPAL.addon_name then
 			SPAL.SVInitialize()
-			SPAL.Msg(SPAL.Colorfy("Version "..SPAL.Version,SPAL.orange).."Loaded!")
+			SPAL.Msg(SPAL.Colorfy("Version "..SPAL.Version,SPAL.orange).." Loaded!")
 
 			if  GetLootMethod() == "master" then
 				SPAL.MasterLooter = true
