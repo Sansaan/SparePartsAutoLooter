@@ -1,8 +1,8 @@
 ## Interface: 20504
 ## Title: <|cffEE160BSpare Parts|r |cffFFFC25Auto Looter|r>
 ## Author: Sansaan-Westfall
-## Version: 1.0.1
+## Version: 1.0.2
 ## SavedVariables: SPALConfig, SPALHistory
-## X-Date: April 29, 2022
+## X-Date: May 5, 2022
 
 SparePartsAutoLooter.lua

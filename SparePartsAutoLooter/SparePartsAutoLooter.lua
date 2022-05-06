@@ -174,7 +174,7 @@ function SPAL.EventHandler(self, event, ...)
 	local lootmethod, masterlooterPartyID, masterlooterRaidID = GetLootMethod()
 
 	if lootmethod == "master" and masterlooterPartyID == 0 then
-		for li = 1, GetNumLootItems() do
+		for li = GetNumLootItems(), 1, -1 do
 			local itemlink = GetLootSlotLink(li)
 			if itemlink then
 				if SPALConfig.AutoLootList[itemlink] then
